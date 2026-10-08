@@ -1,12 +1,14 @@
 namespace HellMudGateway.Base.Types;
 
 //连接的字符集类型
-public class ConntectionCharset
+public enum ConntectionCharset
 {
     //2进制数据
-    public const byte Binary = 0;
+    Binary = 0,
     //UTF-8编码文本
-    public const byte Utf8 = 1;
+    UTF8 = 1,
     //GB18030编码文本
-    public const byte GB18030 = 2;
+    GB18030 = 2,
+    //BIG5编码文本
+    BIG5 = 3
 }

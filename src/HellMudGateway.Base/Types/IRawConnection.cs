@@ -16,6 +16,6 @@ public interface IRawConnection
     public ConnectionPort Local { get; }
     public void Close();
     public RawConnectionAdressType AddressType { get; }
-    Channel<byte[]> Input { get; }
-    Channel<byte[]> Output { get; }
+    Channel<TelnetData> Input { get; }
+    Channel<TelnetData> Output { get; }
 }
