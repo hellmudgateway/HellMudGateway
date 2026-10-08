@@ -13,8 +13,7 @@ public interface IRawConnection
 {
     public string RemoteAddress { get; }
     public int RemotePort { get; }
-    public string LocalAddress { get; }
-    public int LocalPort { get; }
+    public ConnectionPort Local { get; }
     public void Close();
     public RawConnectionAdressType AddressType { get; }
     Channel<byte[]> Input { get; }
