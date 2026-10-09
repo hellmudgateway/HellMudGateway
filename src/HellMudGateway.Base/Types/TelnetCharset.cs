@@ -1,9 +1,9 @@
 namespace HellMudGateway.Base.Types;
 
 //连接的字符集类型
-public enum ConntectionCharset
+public enum TelnetCharset
 {
-    //2进制数据
+    //2进制数据,不进行转换
     Binary = 0,
     //UTF-8编码文本
     UTF8 = 1,

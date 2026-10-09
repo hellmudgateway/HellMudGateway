@@ -14,12 +14,12 @@ public sealed class TelnetDecoder
     public const int StatusOption = 2;
     public const int StatusSb = 3;
     public const int StatusSbIac = 4;
-    public ConntectionCharset Charset { get; set; }
+    public TelnetCharset Charset { get; set; }
 
     private byte[] Buffer;
     private int Count;
     private int Status;
-    public TelnetDecoder(ConntectionCharset charset)
+    public TelnetDecoder(TelnetCharset charset)
     {
         Charset = charset;
         Buffer = new byte[DefaultBufferSize];
@@ -59,9 +59,14 @@ public sealed class TelnetDecoder
         switch (Status)
         {
             case StatusNormal:
-                if (data == TelnetDataHelper.IAC)
+                switch (data)
                 {
-                    Status = StatusIAC;
+                    case TelnetDataHelper.IAC:
+                        Status = StatusIAC;
+                        break;
+                    case TelnetDataHelper.LF:
+                        var rawdata = Flush();
+                        return [TelnetDataHelper.CreateTelnetData(rawdata, TelnetDataHelper.UnescapeIAC(rawdata), Charset)];
                 }
                 return Array.Empty<TelnetData>();
             case StatusIAC:
@@ -75,7 +80,7 @@ public sealed class TelnetDecoder
                     var beforeIACData = Flush();
                     if (beforeIACData.Length > 2)
                     {
-                        beforeResult = TelnetDataHelper.CreateTelnetData(beforeIACData, TelnetDataHelper.UnescapeIAC(beforeIACData), ConntectionCharset.Binary);
+                        beforeResult = TelnetDataHelper.CreateTelnetData(beforeIACData, TelnetDataHelper.UnescapeIAC(beforeIACData), Charset);
                     }
                     switch (data)
                     {
@@ -130,7 +135,7 @@ public sealed class TelnetDecoder
                     {
                         throw new InvalidOperationException("Invalid subnegotiation data.");
                     }
-                    return [TelnetDataHelper.CreateSubnegotiation(sbdata, sbdata[2], sbdata[2..(sbdata.Length - 2)], TelnetDataHelper.TextSubnegotiationMap.ContainsKey(sbdata[2]) ? Charset : ConntectionCharset.Binary)];
+                    return [TelnetDataHelper.CreateSubnegotiation(sbdata, sbdata[2], sbdata[2..(sbdata.Length - 2)], TelnetDataHelper.TextSubnegotiationMap.ContainsKey(sbdata[2]) ? Charset : TelnetCharset.Binary)];
                 }
                 else
                 {

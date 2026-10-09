@@ -17,6 +17,7 @@ public static class TelnetDataHelper
     //telnet IAC 指令: SB, SE
     public const byte SB = 250;
     public const byte SE = 240;
+    public const byte LF=0x0a;
     public static Dictionary<byte, bool> TextSubnegotiationMap { get; } = new();
     //将特定option的子协商注册为文本模式
     //注册为文本模式的子协商在创建时会被视为文本数据，将进行转码
@@ -92,15 +93,15 @@ public static class TelnetDataHelper
         }
     }
     //将 TelnetData 以指定的Charset写入Stream
-    public static async Task WriteData(TelnetData data, Stream stream, ConntectionCharset charset)
+    public static async Task WriteData(TelnetData data, Stream stream, TelnetCharset charset)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(stream);
-        if (charset == ConntectionCharset.Binary)
+        if (charset == TelnetCharset.Binary)
         {
             throw new ArgumentException("Charset cannot be binary.", nameof(charset));
         }
-        if (data.Charset != ConntectionCharset.Binary && charset != data.Charset)
+        if (data.Charset != TelnetCharset.Binary && charset != data.Charset)
         {
             data = ConvertToCharset(data, charset);
         }
@@ -118,25 +119,25 @@ public static class TelnetDataHelper
     //Big5 Encoding
     private static Encoding BIG5Encoding => Encoding.GetEncoding(950);
     //转换Telnet到知道的Charset
-    private static TelnetData ConvertToCharset(TelnetData data, ConntectionCharset charset)
+    private static TelnetData ConvertToCharset(TelnetData data, TelnetCharset charset)
     {
         string decoded = data.Charset switch
         {
-            ConntectionCharset.UTF8 => Encoding.UTF8.GetString(data.Data),
-            ConntectionCharset.GB18030 => GB18030Encoding.GetString(data.Data),
-            ConntectionCharset.BIG5 => BIG5Encoding.GetString(data.Data),
+            TelnetCharset.UTF8 => Encoding.UTF8.GetString(data.Data),
+            TelnetCharset.GB18030 => GB18030Encoding.GetString(data.Data),
+            TelnetCharset.BIG5 => BIG5Encoding.GetString(data.Data),
             _ => throw new ArgumentOutOfRangeException(),
         };
         return charset switch
         {
-            ConntectionCharset.UTF8 => data with { Data = Encoding.UTF8.GetBytes(decoded), Charset = charset, Raw = null },
-            ConntectionCharset.GB18030 => data with { Data = GB18030Encoding.GetBytes(decoded), Charset = charset, Raw = null },
-            ConntectionCharset.BIG5 => data with { Data = BIG5Encoding.GetBytes(decoded), Charset = charset, Raw = null },
+            TelnetCharset.UTF8 => data with { Data = Encoding.UTF8.GetBytes(decoded), Charset = charset, Raw = null },
+            TelnetCharset.GB18030 => data with { Data = GB18030Encoding.GetBytes(decoded), Charset = charset, Raw = null },
+            TelnetCharset.BIG5 => data with { Data = BIG5Encoding.GetBytes(decoded), Charset = charset, Raw = null },
             _ => throw new ArgumentOutOfRangeException(),
         };
     }
     //创建数据型的 TelnetData，raw代表原始数据，data为未转码过的数据正文
-    public static TelnetData CreateTelnetData(byte[]? raw, byte[] data, ConntectionCharset charset)
+    public static TelnetData CreateTelnetData(byte[]? raw, byte[] data, TelnetCharset charset)
     {
         return new TelnetData
         (
@@ -154,7 +155,7 @@ public static class TelnetDataHelper
         (
             TelnetDataType.Command,
             Array.Empty<byte>(),
-             ConntectionCharset.Binary,
+             TelnetCharset.Binary,
              cmd,
              raw
         );
@@ -173,13 +174,13 @@ public static class TelnetDataHelper
         (
             ot,
             Array.Empty<byte>(),
-            ConntectionCharset.Binary,
+            TelnetCharset.Binary,
             option,
             raw
         );
     }
     //创建子协商型的 TelnetData，raw代表原始数据，option为子协商选项字，data为子协商数据正文(未转码)
-    public static TelnetData CreateSubnegotiation(byte[]? raw, byte option, byte[] data, ConntectionCharset charset)
+    public static TelnetData CreateSubnegotiation(byte[]? raw, byte option, byte[] data, TelnetCharset charset)
     {
         return new TelnetData
         (
