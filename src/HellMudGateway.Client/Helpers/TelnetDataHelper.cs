@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using HellMudGateway.Base.Types;
 
@@ -16,6 +17,14 @@ public static class TelnetDataHelper
     //telnet IAC 指令: SB, SE
     public const byte SB = 250;
     public const byte SE = 240;
+    public static Dictionary<byte, bool> TextSubnegotiationMap { get; } = new();
+    //将特定option的子协商注册为文本模式
+    //注册为文本模式的子协商在创建时会被视为文本数据，将进行转码
+    public static void RegisterTextModeSubnegotiation(byte option)
+    {
+        TextSubnegotiationMap[option] = true;
+    }
+    //初始化
     public static void Init()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -35,39 +44,55 @@ public static class TelnetDataHelper
         }
         return ms.ToArray();
     }
+    // 对转义的IAC字节进行还原
+    public static byte[] UnescapeIAC(byte[] escaped)
+    {
+        ArgumentNullException.ThrowIfNull(escaped);
+        using var ms = new MemoryStream();
+        for (int i = 0; i < escaped.Length; i++)
+        {
+            var b = escaped[i];
+            ms.WriteByte(b);
+            if (b == IAC && i + 1 < escaped.Length && escaped[i + 1] == IAC)
+            {
+                i++; // skip the next IAC
+            }
+        }
+        return ms.ToArray();
+    }
     //将telnet转换为byte[]并写入Stream
-    public static void WriteToStream(TelnetData data, Stream stream)
+    public static async Task WriteToStream(TelnetData data, Stream stream)
     {
         switch (data.Type)
         {
             case TelnetDataType.Will:
-                stream.Write([IAC, WILL, data.Option], 0, 3);
+                await stream.WriteAsync([IAC, WILL, data.Option], 0, 3);
                 break;
             case TelnetDataType.Wont:
-                stream.Write([IAC, WONT, data.Option], 0, 3);
+                await stream.WriteAsync([IAC, WONT, data.Option], 0, 3);
                 break;
             case TelnetDataType.Do:
-                stream.Write([IAC, DO, data.Option], 0, 3);
+                await stream.WriteAsync([IAC, DO, data.Option], 0, 3);
                 break;
             case TelnetDataType.Dont:
-                stream.Write([IAC, DONT, data.Option], 0, 3);
+                await stream.WriteAsync([IAC, DONT, data.Option], 0, 3);
                 break;
             case TelnetDataType.Data:
                 var escapedData = EscapeIAC(data.Data);
-                stream.Write(escapedData, 0, escapedData.Length);
+                await stream.WriteAsync(escapedData, 0, escapedData.Length);
                 break;
             case TelnetDataType.Subnegotiation:
                 var escapedSubnegotiation = EscapeIAC(data.Data);
-                stream.Write([IAC, SB, data.Option], 0, 3);
-                stream.Write(escapedSubnegotiation, 0, escapedSubnegotiation.Length);
-                stream.Write([IAC, SE], 0, 2);
+                await stream.WriteAsync([IAC, SB, data.Option], 0, 3);
+                await stream.WriteAsync(escapedSubnegotiation, 0, escapedSubnegotiation.Length);
+                await stream.WriteAsync([IAC, SE], 0, 2);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
     }
     //将 TelnetData 以指定的Charset写入Stream
-    public static void WriteData(TelnetData data, Stream stream, ConntectionCharset charset)
+    public static async Task WriteData(TelnetData data, Stream stream, ConntectionCharset charset)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(stream);
@@ -81,11 +106,11 @@ public static class TelnetDataHelper
         }
         if (data.Raw != null)
         {
-            stream.Write(data.Raw, 0, data.Raw.Length);
+            await stream.WriteAsync(data.Raw.AsMemory(0, data.Raw.Length));
         }
         else
         {
-            WriteToStream(data, stream);
+            await WriteToStream(data, stream);
         }
     }
     //GB18030 Encoding
@@ -110,4 +135,60 @@ public static class TelnetDataHelper
             _ => throw new ArgumentOutOfRangeException(),
         };
     }
+    //创建数据型的 TelnetData，raw代表原始数据，data为未转码过的数据正文
+    public static TelnetData CreateTelnetData(byte[]? raw, byte[] data, ConntectionCharset charset)
+    {
+        return new TelnetData
+        (
+            TelnetDataType.Data,
+            data,
+             charset,
+             0,
+             raw
+        );
+    }
+    //创建命令型的 TelnetData，raw代表原始数据，cmd为命令字
+    public static TelnetData CreateTelnetCommand(byte[]? raw, byte cmd)
+    {
+        return new TelnetData
+        (
+            TelnetDataType.Command,
+            Array.Empty<byte>(),
+             ConntectionCharset.Binary,
+             cmd,
+             raw
+        );
+    }
+    //创建选项型的 TelnetData，raw代表原始数据，type为选项类型，option为选项字
+    public static TelnetData CreateTelnetOption(byte[]? raw, byte type, byte option)
+    {
+        var ot = type switch
+        {
+            WILL => TelnetDataType.Will,
+            WONT => TelnetDataType.Wont,
+            DO => TelnetDataType.Do,
+            _ => TelnetDataType.Dont,
+        };
+        return new TelnetData
+        (
+            ot,
+            Array.Empty<byte>(),
+            ConntectionCharset.Binary,
+            option,
+            raw
+        );
+    }
+    //创建子协商型的 TelnetData，raw代表原始数据，option为子协商选项字，data为子协商数据正文(未转码)
+    public static TelnetData CreateSubnegotiation(byte[]? raw, byte option, byte[] data, ConntectionCharset charset)
+    {
+        return new TelnetData
+        (
+            TelnetDataType.Subnegotiation,
+            data,
+             charset,
+             option,
+             raw
+        );
+    }
+
 }

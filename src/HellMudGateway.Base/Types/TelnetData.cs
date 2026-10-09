@@ -3,6 +3,7 @@ namespace HellMudGateway.Base.Types;
 public enum TelnetDataType
 {
     Data,
+    Command,
     Subnegotiation,
     Will,
     Wont,
