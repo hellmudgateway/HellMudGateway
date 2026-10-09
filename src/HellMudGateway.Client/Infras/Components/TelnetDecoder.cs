@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.IO.Compression;
 using System.Net.Sockets;
 using System.Threading.Channels;
 using HellMudGateway.Base.Types;
@@ -9,16 +10,16 @@ namespace HellMudGateway.Client.Infras.Components;
 public sealed class TelnetDecoder
 {
     public const int DefaultBufferSize = 256;
-    public const int StatusNormal = 0;
-    public const int StatusIAC = 1;
-    public const int StatusOption = 2;
-    public const int StatusSb = 3;
-    public const int StatusSbIac = 4;
-    public TelnetCharset Charset { get; set; }
+    private const int StatusNormal = 0;
+    private const int StatusIAC = 1;
+    private const int StatusOption = 2;
+    private const int StatusSb = 3;
+    private const int StatusSbIac = 4;
 
     private byte[] Buffer;
     private int Count;
     private int Status;
+    public TelnetCharset Charset { get; set; }
     public TelnetDecoder(TelnetCharset charset)
     {
         Charset = charset;
@@ -26,7 +27,7 @@ public sealed class TelnetDecoder
         Count = 0;
         Status = StatusNormal;
     }
-    public void Reset()
+    public void ResetBuffer()
     {
         Count = 0;
         Status = StatusNormal;
@@ -146,7 +147,7 @@ public sealed class TelnetDecoder
         }
         return [];
     }
-    public async Task ReadFromConnectionAsync(IDataStreamHolder holder, Channel<TelnetData> channel, CancellationTokenSource _cancellation)
+    public async Task ReadFromConnectionAsync(Stream stream, Channel<TelnetData> channel, CancellationTokenSource _cancellation)
     {
         var buffer = new byte[8192];
         Exception? error = null;
@@ -155,7 +156,7 @@ public sealed class TelnetDecoder
         {
             while (!_cancellation.IsCancellationRequested)
             {
-                var bytesRead = await holder.DataStream.ReadAsync(buffer, _cancellation.Token);
+                var bytesRead = await stream.ReadAsync(buffer, _cancellation.Token);
                 if (bytesRead == 0)
                 {
                     break;
@@ -167,6 +168,11 @@ public sealed class TelnetDecoder
                     foreach (var telnetData in decoded)
                     {
                         await channel.Writer.WriteAsync(telnetData, _cancellation.Token);
+                        if (TelnetDataHelper.IsStartCompress(telnetData))
+                        {
+                            stream = new ZLibStream(stream, CompressionMode.Compress);
+                        }
+
                     }
                 }
             }
@@ -190,13 +196,17 @@ public sealed class TelnetDecoder
             channel.Writer.TryComplete(error);
         }
     }
-    public async Task<bool> WriteToConnectionAsync(IDataStreamHolder holder, Channel<TelnetData> channel, CancellationTokenSource _cancellation)
+    public async Task<bool> WriteToConnectionAsync(Stream stream, Channel<TelnetData> channel, CancellationTokenSource _cancellation)
     {
         try
         {
             await foreach (var data in channel.Reader.ReadAllAsync(_cancellation.Token))
             {
-                await TelnetDataHelper.WriteToStream(data, holder.DataStream);
+                await TelnetDataHelper.WriteToStream(data, stream);
+                if (TelnetDataHelper.IsStartCompress(data))
+                {
+                    stream = new ZLibStream(stream, CompressionMode.Compress);
+                }
             }
         }
         catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)

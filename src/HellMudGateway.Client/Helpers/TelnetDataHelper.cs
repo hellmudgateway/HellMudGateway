@@ -17,7 +17,7 @@ public static class TelnetDataHelper
     //telnet IAC 指令: SB, SE
     public const byte SB = 250;
     public const byte SE = 240;
-    public const byte LF=0x0a;
+    public const byte LF = 0x0a;
     public static Dictionary<byte, bool> TextSubnegotiationMap { get; } = new();
     //将特定option的子协商注册为文本模式
     //注册为文本模式的子协商在创建时会被视为文本数据，将进行转码
@@ -191,5 +191,16 @@ public static class TelnetDataHelper
              raw
         );
     }
-
+    public static TelnetData StartCompress = new TelnetData(
+        TelnetDataType.Subnegotiation,
+        [],
+        TelnetCharset.Binary,
+        86,
+        [255, 250, 86, 255, 240]
+    );
+    public static bool IsStartCompress(TelnetData data)
+    {
+        return data.Type == TelnetDataType.Subnegotiation &&
+               data.Option == 86;
+    }
 }

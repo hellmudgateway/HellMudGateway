@@ -6,7 +6,7 @@ using HellMudGateway.Client.Helpers;
 
 namespace HellMudGateway.Client.Infras.Components;
 
-public sealed class ClientConnection : IRawConnection,IDataStreamHolder
+public sealed class ClientConnection : IRawConnection
 {
     private readonly bool CompressDisabled;
     private readonly TcpClient _telnetConnection;
@@ -22,7 +22,7 @@ public sealed class ClientConnection : IRawConnection,IDataStreamHolder
         CompressDisabled = compressDisabled;
         if (!telnetConnection.Connected ||
             telnetConnection.Client.RemoteEndPoint is not IPEndPoint remoteEndPoint ||
-            telnetConnection.Client.LocalEndPoint is not IPEndPoint localEndPoint)
+            telnetConnection.Client.LocalEndPoint is not IPEndPoint)
         {
             throw new ArgumentException("The Telnet TCP connection must be connected.", nameof(telnetConnection));
         }
@@ -66,15 +66,15 @@ public sealed class ClientConnection : IRawConnection,IDataStreamHolder
 
     private async Task ReadFromConnectionAsync()
     {
-        await Decoder.ReadFromConnectionAsync(this, Input, _cancellation);
+        await Decoder.ReadFromConnectionAsync(DataStream, Input, _cancellation);
     }
 
     private async Task WriteToConnectionAsync()
     {
-        if (await Decoder.WriteToConnectionAsync(this, Output, _cancellation))
+        if (await Decoder.WriteToConnectionAsync(DataStream, Output, _cancellation))
         {
             Close();
-            Output.Reader.Completion.ContinueWith(_ => { }, TaskScheduler.Default);
+            _ = Output.Reader.Completion.ContinueWith(_ => { }, TaskScheduler.Default);
         }
     }
 }
